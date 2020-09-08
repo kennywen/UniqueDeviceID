@@ -12,6 +12,8 @@ import android.content.pm.PackageManager;
 import android.provider.Settings.Secure;
 import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.media.MediaDrm;
+import java.util.*;
 
 import java.lang.reflect.Method;
 
@@ -54,30 +56,43 @@ public class UniqueDeviceID extends CordovaPlugin {
 
     protected void getDeviceId(){
         try {
-            Context context = cordova.getActivity().getApplicationContext();
-            TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
-
             String uuid;
-            String androidID = Secure.getString(context.getContentResolver(), Secure.ANDROID_ID);
-            String deviceID = tm.getDeviceId();
-            String simID = tm.getSimSerialNumber();
+            
+            if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                UUID wideVineUuid = new UUID(-0x121074568629b532L, -0x5c37d8232ae2de13L);
+                try {
+                  MediaDrm wvDrm = new MediaDrm(wideVineUuid);
+                  byte[] wideVineId = wvDrm.getPropertyByteArray(MediaDrm.PROPERTY_DEVICE_UNIQUE_ID);
+                  uuid = Base64.encodeToString(WideVineId , Base64.Default) 
+                } catch (Exception e) {
+                  // Inspect exception
+                  uuid = "";
+                }
+            }else{
+                Context context = cordova.getActivity().getApplicationContext();
+                TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
 
-            if ("9774d56d682e549c".equals(androidID) || androidID == null) {
-                androidID = "";
+                String androidID = Secure.getString(context.getContentResolver(), Secure.ANDROID_ID);
+                String deviceID = tm.getDeviceId();
+                String simID = tm.getSimSerialNumber();
+
+                if ("9774d56d682e549c".equals(androidID) || androidID == null) {
+                    androidID = "";
+                }
+
+                if (deviceID == null) {
+                    deviceID = "";
+                }
+
+                if (simID == null) {
+                    simID = "";
+                }
+
+                uuid = androidID + deviceID + simID;
+                uuid = String.format("%32s", uuid).replace(' ', '0');
+                uuid = uuid.substring(0, 32);
+                uuid = uuid.replaceAll("(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})", "$1-$2-$3-$4-$5");
             }
-
-            if (deviceID == null) {
-                deviceID = "";
-            }
-
-            if (simID == null) {
-                simID = "";
-            }
-
-            uuid = androidID + deviceID + simID;
-            uuid = String.format("%32s", uuid).replace(' ', '0');
-            uuid = uuid.substring(0, 32);
-            uuid = uuid.replaceAll("(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})", "$1-$2-$3-$4-$5");
 
             this.callbackContext.success(uuid);
         }catch(Exception e ) {
